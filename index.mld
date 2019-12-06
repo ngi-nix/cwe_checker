@@ -11,12 +11,16 @@
 
 {i cwe_checker} is implemented as a plugin for the {{: https://github.com/BinaryAnalysisPlatform/bap} Binary Analysis Platform} (BAP).
 To use it, just run BAP with {i cwe_checker} as a pass:
-{[bap [BINARY_FILE] --pass=cwe_checker]}
+{[bap [BINARY_FILE] --pass=cwe-checker]}
 This runs all static analysis based checks.
 You can find more documentation on these checks at their {{: ../cwe_checker_core/Cwe_checker_core/index.html} module documentation pages}.
 The behaviour of these checks can be modified through an optional configuration file.
 Just edit the [src/config.json] file and then add [--cwe-checker-config=src/config.json] as a command line option.
 You can find more on the available command line options {{!section:CmdLineOptions} here}.
+
+Alternatively, you can run the {i cwe_checker} through the command
+{[cwe_checker [BINARY_FILE] ]}
+Internally, this also calls BAP as above, but enables shorter {{!section:CmdLineOptions} command line options}.
 
 The symbolic execution based checks can be run with the emulation recipe in the recipes folder.
 {[bap PATH_TO_BINARY --recipe=recipes/emulation]}
@@ -33,8 +37,11 @@ If you want to print the output to a file with [--cwe-checker-out], you also nee
 
 {1:CmdLineOptions Command line options}
 
-All command line options have to be prefixed with [--cwe-checker] (so that BAP knows to forward them to the {i cwe_checker} plugin).
+If you run the {i cwe_checker} as a BAP plugin, all command line options have to be prefixed with [--cwe-checker] (so that BAP knows to forward them to the {i cwe_checker} plugin).
+If you run the {i cwe_checker} directly, do not prefix the command line options.
 The available command line options are:
+- [-check-path] Find paths between input functions (configurable in the configuration file) and CWE hits.
+Should be used together with the [-partial] command line option if you are only interested in paths to specific CWEs.
 - [-config=[FILE]] Use [[FILE]] as the configuration file.
 If you omit this option, {i cwe_checker} uses a standard configuration file located at [src/config.json].
 - [-module-versions] Prints the version numbers of each check.
@@ -49,13 +56,15 @@ Note that debug, info and error messages are still printed to stdout and not to 
 E.g. [-partial=CWE190,CWE476] would only run the checks for CWE-190 and CWE-476.
 The names of all available modules can be printed with the [-module-versions] command line option.
 
-{1:ToolIntegration Integration with IDA Pro}
+{1:ToolIntegration Integration with IDA Pro and Ghidra}
 
-To annotate CWE-hits in IDA Pro, first run {i cwe_checker} and save the JSON-formatted output to a file.
+To annotate CWE-hits in IDA Pro or Ghidra, first run {i cwe_checker} and save the JSON-formatted output to a file.
 {[bap [BINARY] --pass=cwe-checker --cwe-checker-json --cwe-checker-out=cwe_hits.json]}
-Then run the [cwe_checker_to_ida.py] script located in the [cwe_checker_to_ida] folder.
+- For IDA Pro run the [cwe_checker_to_ida.py] script located in the [cwe_checker_to_ida] folder.
 {[python3 cwe_checker_to_ida.py -i cwe_hits.json -o cwe_hits.py]}
 Now open the binary file in IDA Pro and execute the generated [cwe_hits.py] script from within IDA Pro (Alt+F7).
+- For Ghidra copy the [cwe_checker_ghidra_plugin.py] script located in the [ghidra_plugin] folder into the script folder of Ghidra.
+Now open the binary in Ghidra and run the [cwe_checker_ghidra_plugin.py] script through the script manager and select the generated [cwe_hits.json] file when prompted.
 
 {1:HackingHowto How to write your own check}
 
