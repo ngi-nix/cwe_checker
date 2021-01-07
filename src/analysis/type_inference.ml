@@ -20,7 +20,7 @@ let version = "0.2"
 (* generic merge of two ('a, unit) Result.t Option.t *)
 let merge_result_option val1 val2 =
   match (val1, val2) with
-  | (Some(Ok(x)), Some(Ok(y))) when x = y -> Some(Ok(x))
+  | (Some(Ok(x)), Some(Ok(y))) when Poly.(=) x y -> Some(Ok(x))
   | (Some(x), None)
   | (None, Some(x)) -> Some(x)
   | (None, None) -> None
@@ -196,10 +196,7 @@ module TypeInfo = struct
   let remove_virtual_registers state =
     { state with reg = Map.filter_keys state.reg ~f:(fun var -> Var.is_physical var) }
 
-(** if the addr_exp is a (computable) stack offset, return the offset. In cases where addr_expr
-    may or may not be a stack offset (i.e. offset of a register which may point to the stack or
-    to some other memory region), it still returns an offset. *)
-  let compute_stack_offset state addr_exp ~sub_tid ~project : Bitvector.t  Option.t =
+  let compute_stack_offset (state: t) (addr_exp: Exp.t) ~(sub_tid: Tid.t) ~(project: Project.t) : Bitvector.t Option.t =
     let (register, offset) = match addr_exp with
       | Bil.Var(var) -> (Some(var), Bitvector.of_int 0 ~width:(Symbol_utils.arch_pointer_size_in_bytes project * 8))
       | Bil.BinOp(Bil.PLUS, Bil.Var(var), Bil.Int(num)) -> (Some(var), num)
@@ -261,7 +258,7 @@ let get_stack_elem state exp ~sub_tid ~project =
       | Some(offset) -> begin
           match Mem_region.get state.TypeInfo.stack offset with
           | Some(Ok(elem, elem_size)) ->
-            if Bitvector.to_int elem_size = Ok(Size.in_bytes size) then
+            if Poly.(=) (Bitvector.to_int elem_size) (Ok(Size.in_bytes size)) then
               Some(Ok(elem))
             else
               Some(Error())
@@ -280,7 +277,7 @@ let value_of_exp exp =
   | _ -> None
 
 
-let rec type_of_exp exp (state: TypeInfo.t) ~sub_tid ~project =
+let rec type_of_exp (exp: Exp.t) (state: TypeInfo.t) ~(sub_tid: Tid.t) ~(project: Project.t) : (Register.t, unit) Result.t Option.t =
   let open Register in
   match exp with
   | Bil.Load(_) -> (* TODO: Right now only the stack is tracked for type infos. *)
@@ -321,7 +318,8 @@ let rec type_of_exp exp (state: TypeInfo.t) ~sub_tid ~project =
   | Bil.Unknown(_) -> None
   | Bil.Ite(_if_, then_, else_) -> begin
       match (type_of_exp then_ state ~sub_tid ~project, type_of_exp else_ state ~sub_tid ~project) with
-      | (Some(value1), Some(value2)) -> if value1 = value2 then Some(value1) else None
+      | (Some(Ok(value1)), Some(Ok(value2))) -> if Register.equal value1 value2 then Some(Ok(value1)) else None
+      | (Some(Error ()), Some(Error ())) -> Some(Error ())
       | _ -> None
     end
   | Bil.Extract(_) -> Some(Ok(Data)) (* TODO: Similar to cast: Are there cases of 32bit-64bit-address-conversions here? *)
@@ -401,7 +399,7 @@ let add_mem_address_registers state exp ~sub_tid ~project =
           | Bil.BinOp(Bil.AND, exp2, Bil.Var(addr))
           | Bil.BinOp(Bil.OR, Bil.Var(addr), exp2)
           | Bil.BinOp(Bil.OR, exp2, Bil.Var(addr))            ->
-            if type_of_exp exp2 state ~sub_tid ~project = Some(Ok(Register.Data)) then
+            if Poly.(=) (type_of_exp exp2 state ~sub_tid ~project) (Some(Ok(Register.Data))) then
               begin match Map.find state.TypeInfo.reg addr with
               | Some(Ok(Pointer(_))) -> state
               | _ ->   { state with TypeInfo.reg = Map.set state.TypeInfo.reg ~key:addr ~data:(Ok(Register.Pointer(Tid.Map.empty))) }
@@ -492,8 +490,8 @@ let update_state_jmp state jmp ~sub_tid ~project =
         let func_name = match String.lsplit2 (Tid.name tid) ~on:'@' with
           | Some(_left, right) -> right
           | None -> Tid.name tid in
-        if String.Set.mem (Cconv.parse_dyn_syms project) func_name then
-          begin if List.exists (malloc_like_function_list ()) ~f:(fun elem -> elem = func_name) then
+        if String.Set.mem (Symbol_utils.parse_dyn_syms project) func_name then
+          begin if List.exists (malloc_like_function_list ()) ~f:(fun elem -> String.(=) elem func_name) then
               update_state_malloc_call state tid jmp ~project
             else
               let empty_state = TypeInfo.empty () in (* TODO: to preserve stack information we need to be sure that the callee does not write on the stack. Can we already check that? *)
@@ -544,7 +542,7 @@ let intraprocedural_fixpoint func ~project =
     let fn_start_state = TypeInfo.function_start_state sub_tid project in
     let fn_start_block = Option.value_exn (Term.first blk_t func) in
     let fn_start_state = update_block_analysis fn_start_block fn_start_state ~sub_tid ~project in
-    let fn_start_node = Seq.find_exn (Graphs.Ir.nodes cfg) ~f:(fun node -> (Term.tid fn_start_block) = (Term.tid (Graphs.Ir.Node.label node))) in
+    let fn_start_node = Seq.find_exn (Graphs.Ir.nodes cfg) ~f:(fun node -> Tid.(=) (Term.tid fn_start_block) (Term.tid (Graphs.Ir.Node.label node))) in
     let empty = Map.empty (module Graphs.Ir.Node) in
     let with_start_node = Map.set empty ~key:fn_start_node ~data:fn_start_state in
     let init = Graphlib.Std.Solution.create with_start_node only_sp in
@@ -643,7 +641,26 @@ let print_type_info_tags ~project ~tid_map =
                                (Tid.name (Term.tid block)) in
              Log_utils.error error_str
         )
-    )
+  )
+
+let get_type_info_of_block ~(project: Project.t) (block: Blk.t) ~(sub_tid: Tid.t) : TypeInfo.t Tid.Map.t =
+  match Term.get_attr block type_info_tag with
+  | Some(start_state) ->
+      let elements = Blk.elts block in
+      let (type_info_map, _) = Seq.fold elements ~init:(Tid.Map.empty, start_state) ~f:(fun (type_info_map, state) element ->
+        match element with
+        | `Phi _ -> (type_info_map, state)
+        | `Def term ->
+            let new_type_info_map = Tid.Map.set type_info_map ~key:(Term.tid term) ~data:state in
+            let new_state = update_type_info element state ~sub_tid ~project in
+            (new_type_info_map, new_state)
+        | `Jmp term ->
+            let new_type_info_map = Tid.Map.set type_info_map ~key:(Term.tid term) ~data:state in
+            let new_state = update_type_info element state ~sub_tid ~project in
+            (new_type_info_map, new_state)
+      ) in
+      type_info_map
+  | None -> failwith "[cwe_checker] Error: Tag not found"
 
 (* Functions made available for unit tests *)
 module Private = struct

@@ -37,6 +37,12 @@
         "chroot",
         "setuid"
       ]
+    ],
+    "priviledge_dropping_functions": [
+      "setresuid",
+      "seteuid",
+      "setreuid",
+      "setuid"
     ]
   },
   "CWE248": {
@@ -98,6 +104,7 @@
     "_comment1": "included functions of the following libs: stdlib.h, locale.h, stdio.h, cstring.h, wchar.h",
     "parameters": [
       "strict_call_policy=true",
+      "strict_memory_policy=false",
       "max_steps=100"
     ],
     "symbols": [
@@ -188,6 +195,17 @@
       "recv",
       "fgets",
       "scanf"
+    ]
+  },
+  "Memory": {
+    "allocation_symbols": [
+      "malloc",
+      "calloc",
+      "realloc",
+      "xmalloc"
+    ],
+    "deallocation_symbols": [
+      "free"
     ]
   }
 }

@@ -23,17 +23,17 @@ let version = "0.1"
 let check_cwe _ project _ _ _ =
   match Project.get project filename with
   | Some fname -> begin
-      let cmd = Format.sprintf "readelf --debug-dump=decodedline %s | grep CU" fname in
+      let cmd = Format.sprintf "objdump --dwarf=decodedline %s | grep CU" fname in
       try
-        let in_chan = Unix.open_process_in cmd in
+        let in_chan = Caml_unix.open_process_in cmd in
         In_channel.input_lines in_chan |> List.iter ~f:(fun l ->
-                                              let description = sprintf "(Information Exposure Through Debug Information) %s" l in 
+                                              let description = sprintf "(Information Exposure Through Debug Information) %s" l in
                                               let cwe_warning = cwe_warning_factory name version description ~symbols:[l] in
                                               collect_cwe_warning cwe_warning)
 
 
       with
-        Unix.Unix_error (e,fm,argm) ->
-        Log_utils.error (sprintf "[%s] {%s} %s %s %s" name version (Unix.error_message e) fm argm)
+        Caml_unix.Unix_error (e,fm,argm) ->
+        Log_utils.error (sprintf "[%s] {%s} %s %s %s" name version (Caml_unix.error_message e) fm argm)
     end
   | _ -> failwith "[CWE215] symbol_names not as expected"

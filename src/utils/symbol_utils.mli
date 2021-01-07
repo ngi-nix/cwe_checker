@@ -1,5 +1,7 @@
 (** This module implements functionality to work with symbols (e.g. malloc).*)
 
+open Core_kernel
+
 type concrete_call = {
   call_site : Bap.Std.tid
   ; symbol_address : Bap.Std.tid
@@ -11,6 +13,35 @@ type symbol = {
   address : Bap.Std.tid option
   ; name : string;
 }
+
+(** This type represents an external symbol. *)
+type extern_symbol = {
+  tid : Bap.Std.tid
+  ; address : string
+  ; name : string
+  ; cconv : string option
+  ; args : (Bap.Std.Var.t * Bap.Std.Exp.t * Bap.Std.intent option) list;
+}
+
+(** Returns a list of those function names that are extern symbols.
+    TODO: Since we do not do name demangling here, check whether bap name demangling
+    yields different function names for the symbols. *)
+val parse_dyn_syms: Bap.Std.Project.t -> String.Set.t
+
+(** Parses each line returned from dynamic symbol call. *)
+val parse_dyn_sym_line : string -> string option
+
+(** Returns the calling convention for the whole project inferred by Bap. *)
+val get_project_calling_convention : Bap.Std.Project.t -> string option
+
+(** Checks whether the external symbols have already been built. If not, it calls the symbol builder. *)
+val build_and_return_extern_symbols : Bap.Std.Project.t -> Bap.Std.program Bap.Std.term -> Bap.Std.word Bap.Std.Tid.Map.t -> extern_symbol list
+
+(** Builds a list of function symbols type from external function names given by objdump. *)
+val build_extern_symbols : Bap.Std.Project.t -> Bap.Std.program Bap.Std.term -> string list -> Bap.Std.word Bap.Std.Tid.Map.t -> unit
+
+(** Adds an analysed internal symbol to the list of external symbols. *)
+val add_as_extern_symbol : Bap.Std.Project.t -> Bap.Std.program Bap.Std.term -> string -> Bap.Std.word Bap.Std.Tid.Map.t -> unit
 
 (** Finds a symbol string in a program and returns its IR address (tid). *)
 val find_symbol : Bap.Std.program Bap.Std.term -> string -> Bap.Std.tid option
@@ -37,6 +68,13 @@ val calls_callsite_symbol : Bap.Std.Jmp.t -> symbol -> bool
 
 (** This function finds all (direct) calls in a program. It returns a list of tuples of (callsite, address).*)
 val call_finder : (Bap.Std.tid * Bap.Std.tid) list Bap.Std.Term.visitor
+
+(** Checks whether the call_finder has already extracted the calls from the program, and if so, returns a global variable.
+    Otherwise the call_finder is called *)
+val get_calls : Bap.Std.program Bap.Std.term -> (Bap.Std.tid * Bap.Std.tid) list
+
+(** Checks whether extern symbols have been resolved by Bap. If not a single symbol has been resolved, an error message is returned. *)
+val check_if_symbols_resolved : Bap.Std.Project.t -> Bap.Std.program Bap.Std.term -> Bap.Std.word Bap.Std.Tid.Map.t -> bool
 
 (** Transform a call (e.g. found with call_finder) to concrete_call with the symbol resolved.*)
 val transform_call_to_concrete_call :
@@ -76,7 +114,7 @@ val extract_direct_call_tid_from_block : Bap.Std.blk Bap.Std.term -> Bap.Std.tid
 (** Returns a sequence of all entry points of the program.
     TODO: The _start entry point usually calls a libc-function which then calls the main function. Since right now only direct
     calls are tracked, our graph traversal may never find the main function. For now, we add it by hand to the entry points. *)
-val get_program_entry_points : Bap.Std.program Bap.Std.term -> Bap.Std.sub Bap.Std.term Bap.Std.Seq.t
+val get_program_entry_points : Bap.Std.program Bap.Std.term -> Bap.Std.sub Bap.Std.term List.t
 
 (** Returns the stack register on the architecture of the given project. *)
 val stack_register: Bap.Std.Project.t -> Bap.Std.Var.t

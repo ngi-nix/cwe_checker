@@ -1,3 +1,21 @@
+0.4 (2021-01)
+====
+
+-   Added a lot more test cases to acceptance tests (PR #46)
+-   Reworked CWE-476 check to track stack variables (PR #47)
+-   Switched to BAP 2.0 (PR #49)
+-   Several internal code improvements (PRs #51, #58, #62, #67)
+-   Added deprecation warnings to the emulation based checks (PR #66)
+-   Added a new (still experimental) engine for data-flow analysis written in Rust (PR #70)
+-   Added new, data-flow based checks for CWEs 415 and 416 (PR #70)
+-   Several code improvements to for the CWE 415 and 416 checks (PRs #76, #77. #78, #84)
+-   Report more accurate incident locations for CWE 476 (PR #80)
+-   Enable Ghidra as an alternative Backend to BAP (still experimental) (PRs #86, #87)
+-   Added acceptance tests for the Ghidra backend (PRs #91, #99)
+-   Bugfixes for the Ghidra backend (PRs #98, #101, #104, #106, #110, #114, #120)
+-   Ported the CWE checks to Rust for the Ghidra backend (PRs #88, #95, #100, #102, #111, #117, #119, #121)
+-   Added support for Ghidra 9.2 (PR #116) and BAP 2.2 (PR #122)
+
 0.3 (2019-12)
 ====
 

@@ -1,11 +1,14 @@
-FROM fkiecad/cwe_checker_travis_docker_image:stable
+FROM fkiecad/cwe_checker_travis_docker_image:bap
 
-COPY . /home/bap/cwe_checker/
+COPY . /home/cwe/cwe_checker/
 
-RUN sudo chown -R bap:bap /home/bap/cwe_checker \
-    && cd /home/bap/cwe_checker \
-    && make all
+RUN sudo chown -R cwe:cwe /home/cwe/cwe_checker \
+    && cd /home/cwe/cwe_checker \
+    && make all \
+    && cargo clean \
+    && dune clean
 
-WORKDIR /home/bap/cwe_checker
+WORKDIR /home/cwe/cwe_checker
 
 ENTRYPOINT ["opam", "config", "exec", "--"]
+CMD cwe_checker /tmp/input

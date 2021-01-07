@@ -24,22 +24,29 @@ Internally, this also calls BAP as above, but enables shorter {{!section:CmdLine
 
 The symbolic execution based checks can be run with the emulation recipe in the recipes folder.
 {[bap PATH_TO_BINARY --recipe=recipes/emulation]}
-Note that these checks are rather slow at the moment and should only be applied to small binaries.
+Note that these checks are rather slow and should only be applied to small binaries.
+{e Deprecation warning:} We recently decided to deprecate support for the symbolic execution based checks and they will be removed in a future version.
+Users of these checks should take a look at the {{: https://github.com/BinaryAnalysisPlatform/bap-toolkit} BAP toolkit},
+which provides better-maintained versions of these checks.
 
-{2 How to use the docker image}
+{2 How to use the docker images}
 
-The docker image, which is based on the current master branch of the repository, can be installed with
-{[docker pull fkiecad/cwe_checker]}
-To use it, mount the target binary inside the docker container and call {i bap} with {i cwe_checker} as a pass as usual:
+There are two docker images containing preinstalled versions of the {i cwe_checker}:
+- [docker pull fkiecad/cwe_checker:latest] pulls the image based on the current master branch.
+- [docker pull fkiecad/cwe_checker:stable] pulls the image based on the current stable release version.
+
+To use them, mount the target binary inside the docker container and call {i bap} with {i cwe_checker} as a pass as usual:
 {[docker run --rm -v [BINARY]:/tmp/input fkiecad/cwe_checker bap /tmp/input --pass=cwe-checker]}
 If you are using a customized [config.json] file, don't forget to mount it inside your container as well!
-If you want to print the output to a file with [--cwe-checker-out], you also need to mount the output file to the docker container, or else the file will be lost once the container gets destroyed.
+If you want to print the output to a file with [--cwe-checker-out], you also need to mount the output file to the docker container,
+or else the file will be lost once the container gets destroyed.
 
 {1:CmdLineOptions Command line options}
 
 If you run the {i cwe_checker} as a BAP plugin, all command line options have to be prefixed with [--cwe-checker] (so that BAP knows to forward them to the {i cwe_checker} plugin).
 If you run the {i cwe_checker} directly, do not prefix the command line options.
 The available command line options are:
+- [-version] Print the version number of the {i cwe_checker} and exit.
 - [-check-path] Find paths between input functions (configurable in the configuration file) and CWE hits.
 Should be used together with the [-partial] command line option if you are only interested in paths to specific CWEs.
 - [-config=[FILE]] Use [[FILE]] as the configuration file.
@@ -60,6 +67,7 @@ The names of all available modules can be printed with the [-module-versions] co
 
 To annotate CWE-hits in IDA Pro or Ghidra, first run {i cwe_checker} and save the JSON-formatted output to a file.
 {[bap [BINARY] --pass=cwe-checker --cwe-checker-json --cwe-checker-out=cwe_hits.json]}
+After that execute the tool-specific script to import the results:
 - For IDA Pro run the [cwe_checker_to_ida.py] script located in the [cwe_checker_to_ida] folder.
 {[python3 cwe_checker_to_ida.py -i cwe_hits.json -o cwe_hits.py]}
 Now open the binary file in IDA Pro and execute the generated [cwe_hits.py] script from within IDA Pro (Alt+F7).
