@@ -86,6 +86,14 @@ impl ByteSize {
     }
 }
 
+impl TryFrom<ByteSize> for i64 {
+    type Error = std::num::TryFromIntError;
+
+    fn try_from(elem: ByteSize) -> Result<i64, std::num::TryFromIntError> {
+        i64::try_from(u64::from(elem))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

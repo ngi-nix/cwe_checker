@@ -5,6 +5,7 @@ use apint::{Int, Width};
 use derive_more::Deref;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
@@ -85,18 +86,34 @@ impl<T: AbstractDomain + HasByteSize + RegisterDomain + std::fmt::Debug> MemRegi
         self.address_bytesize
     }
 
-    /// Remove all elements intersecting the provided interval.
+    /// Remove all elements contained in the provided interval.
+    /// Elements only intersecting the interval are truncated to the part outside of the interval
+    /// using the [`RegisterDomain::subpiece`] function.
+    ///
     /// This function does not sanitize its inputs.
     fn clear_interval(&mut self, position: i64, size: i64) {
-        // If the previous element intersects the range, remove it
-        if let Some((prev_pos, prev_size)) = self
-            .values
-            .range(..position)
-            .map(|(pos, elem)| (*pos, u64::from(elem.bytesize()) as i64))
-            .last()
-        {
+        if let Some((prev_pos, prev_elem)) = self.values.range(..position).last() {
+            let prev_pos = *prev_pos;
+            let prev_size = i64::try_from(prev_elem.bytesize()).unwrap();
+            let prev_elem = self.values.remove(&prev_pos).unwrap();
+            // If the previous element intersects the range, truncate it
             if prev_pos + prev_size > position {
-                self.values.remove(&prev_pos);
+                let truncated_size = ByteSize::new((position - prev_pos) as u64);
+                let truncated_value = prev_elem.subpiece(ByteSize::new(0), truncated_size);
+                if !truncated_value.is_top() {
+                    self.values.insert(prev_pos, truncated_value);
+                }
+            }
+            // If the previous element contains the whole interval to clear, also add the truncated other end
+            if prev_pos + prev_size > position + size {
+                let truncated_size =
+                    ByteSize::new(((prev_pos + prev_size) - (position + size)) as u64);
+                let truncated_low_byte = ByteSize::new((position + size - prev_pos) as u64);
+                let truncated_elem = prev_elem.subpiece(truncated_low_byte, truncated_size);
+                if !truncated_elem.is_top() {
+                    let new_pos = position + size;
+                    self.values.insert(new_pos, truncated_elem);
+                }
             }
         }
         // remove all other intersecting elements
@@ -105,8 +122,23 @@ impl<T: AbstractDomain + HasByteSize + RegisterDomain + std::fmt::Debug> MemRegi
             .range(position..(position + size))
             .map(|(pos, _elem)| *pos)
             .collect();
-        for index in intersecting_elements {
-            self.values.remove(&index);
+        if let Some((last_pos, Some(last_elem))) = intersecting_elements
+            .into_iter()
+            .map(|index| (index, self.values.remove(&index)))
+            .last()
+        {
+            let last_size = i64::try_from(last_elem.bytesize()).unwrap();
+            // if the last element is not fully covered by the interval to clear, truncate it.
+            if last_pos + last_size > position + size {
+                let truncated_size =
+                    ByteSize::new(((last_pos + last_size) - (position + size)) as u64);
+                let truncated_low_byte = ByteSize::new((position + size - last_pos) as u64);
+                let truncated_elem = last_elem.subpiece(truncated_low_byte, truncated_size);
+                if !truncated_elem.is_top() {
+                    let new_pos = position + size;
+                    self.values.insert(new_pos, truncated_elem);
+                }
+            }
         }
     }
 
@@ -131,16 +163,56 @@ impl<T: AbstractDomain + HasByteSize + RegisterDomain + std::fmt::Debug> MemRegi
     }
 
     /// Get the value at the given position.
-    /// If there is no value at the position or the size of the element is not the same as the provided size, return `T::new_top()`.
+    ///
+    /// The function tries to piece together the value from several values if position and size do not perfectly match.
+    /// However, if at least one byte of the value is totally unknown,
+    /// a `T::new_top()`-element is returned regardless of any knowledge about the other bytes in the range.
     pub fn get(&self, position: Bitvector, size_in_bytes: ByteSize) -> T {
         assert_eq!(ByteSize::from(position.width()), self.address_bytesize);
         let position = Int::from(position).try_to_i64().unwrap();
 
-        if let Some(elem) = self.values.get(&position) {
-            if elem.bytesize() == size_in_bytes {
-                return elem.clone();
+        let mut partial_elem = match self.values.get(&position) {
+            Some(elem) if elem.bytesize() == size_in_bytes => return elem.clone(),
+            Some(elem) if elem.bytesize() > size_in_bytes => {
+                return elem.subpiece(ByteSize::new(0), size_in_bytes)
+            }
+            Some(elem) => elem.clone(),
+            None => {
+                if let Some((prev_index, prev_elem)) = self.values.range(..position).last() {
+                    let prev_size = i64::try_from(prev_elem.bytesize()).unwrap();
+                    if prev_index + prev_size >= position + i64::try_from(size_in_bytes).unwrap() {
+                        let subpiece_index = ByteSize::new((position - prev_index) as u64);
+                        return prev_elem.subpiece(subpiece_index, size_in_bytes);
+                    } else if prev_index + prev_size > position {
+                        let subpiece_index = ByteSize::new((position - prev_index) as u64);
+                        let subpiece_size = prev_elem.bytesize() - subpiece_index;
+                        prev_elem.subpiece(subpiece_index, subpiece_size)
+                    } else {
+                        return T::new_top(size_in_bytes);
+                    }
+                } else {
+                    return T::new_top(size_in_bytes);
+                }
+            }
+        };
+        for (next_index, next_elem) in self.values.range((position + 1)..) {
+            use crate::intermediate_representation::BinOpType;
+            if partial_elem.bytesize() == size_in_bytes {
+                return partial_elem;
+            };
+            if *next_index != position + i64::try_from(partial_elem.bytesize()).unwrap() {
+                return T::new_top(size_in_bytes);
+            } else if partial_elem.bytesize() + next_elem.bytesize() == size_in_bytes {
+                return partial_elem.bin_op(BinOpType::Piece, next_elem);
+            } else if partial_elem.bytesize() + next_elem.bytesize() > size_in_bytes {
+                let subpiece_next_elem =
+                    next_elem.subpiece(ByteSize::new(0), size_in_bytes - partial_elem.bytesize());
+                return partial_elem.bin_op(BinOpType::Piece, &subpiece_next_elem);
+            } else {
+                partial_elem = partial_elem.bin_op(BinOpType::Piece, next_elem);
             }
         }
+        // If the for-loop finished without returning, then the partial_elem is still incomplete.
         T::new_top(size_in_bytes)
     }
 
@@ -165,7 +237,8 @@ impl<T: AbstractDomain + HasByteSize + RegisterDomain + std::fmt::Debug> MemRegi
 
     /// Merge two memory regions.
     ///
-    /// Values at the same position and with the same size get merged via their merge function.
+    /// Values at the same position get merged via their merge function.
+    /// If the values do not have the same bytesize, the larger value gets truncated to the size of the smaller one first.
     /// Other values are *not* added to the merged region, because they could be anything in at least one of the two regions.
     pub fn merge(&self, other: &MemRegionData<T>) -> MemRegionData<T> {
         assert_eq!(self.address_bytesize, other.address_bytesize);
@@ -175,12 +248,19 @@ impl<T: AbstractDomain + HasByteSize + RegisterDomain + std::fmt::Debug> MemRegi
         // add all elements contained in both memory regions
         for (pos_left, elem_left) in self.values.iter() {
             if let Some((_pos_right, elem_right)) = other.values.get_key_value(pos_left) {
-                if elem_left.bytesize() == elem_right.bytesize() {
-                    let merged_val = elem_left.merge(&elem_right);
-                    if !merged_val.is_top() {
-                        // we discard top()-values, as they don't contain information
-                        merged_values.insert(*pos_left, merged_val);
-                    }
+                let merged_val = if elem_left.bytesize() == elem_right.bytesize() {
+                    elem_left.merge(&elem_right)
+                } else {
+                    let (small_elem, large_elem) = if elem_left.bytesize() < elem_right.bytesize() {
+                        (elem_left, elem_right)
+                    } else {
+                        (elem_right, elem_left)
+                    };
+                    small_elem.merge(&large_elem.subpiece(ByteSize::new(0), small_elem.bytesize()))
+                };
+                if !merged_val.is_top() {
+                    // we discard top()-values, as they don't contain information
+                    merged_values.insert(*pos_left, merged_val);
                 }
             }
         }
