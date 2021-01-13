@@ -2,7 +2,7 @@ open Core_kernel
 open Bap.Std
 open Format
 
-let version = "0.3-dev"
+let version = "0.4"
 
 type cwe_module = {
   cwe_func :  Bap.Std.program Bap.Std.term -> Bap.Std.project -> Bap.Std.word Bap.Std.Tid.Map.t -> string list list -> string list -> unit;
