@@ -1,14 +1,26 @@
-FROM fkiecad/cwe_checker_travis_docker_image:bap
+FROM rust:1.49 AS builder
 
-COPY . /home/cwe/cwe_checker/
+WORKDIR /cwe_checker
 
-RUN sudo chown -R cwe:cwe /home/cwe/cwe_checker \
-    && cd /home/cwe/cwe_checker \
-    && make all \
-    && cargo clean \
-    && dune clean
+COPY . .
+RUN cargo build --release
 
-WORKDIR /home/cwe/cwe_checker
+FROM fkiecad/ghidra_headless_base:9.2.1 as runtime
 
-ENTRYPOINT ["opam", "config", "exec", "--"]
-CMD cwe_checker /tmp/input
+RUN apt-get -y update \
+    && apt-get -y install sudo \
+    && useradd -m cwe \
+    && echo "cwe:cwe" | chpasswd \
+    && adduser cwe sudo \
+    && sed -i.bkp -e 's/%sudo\s\+ALL=(ALL\(:ALL\)\?)\s\+ALL/%sudo ALL=NOPASSWD:ALL/g' /etc/sudoers
+USER cwe
+
+# Install all necessary files from the builder stage
+COPY --from=builder /cwe_checker/target/release/cwe_checker /home/cwe/cwe_checker
+COPY --from=builder /cwe_checker/src/config.json /home/cwe/.config/cwe_checker/config.json
+COPY --from=builder /cwe_checker/src/ghidra/p_code_extractor /home/cwe/.local/share/cwe_checker/ghidra/p_code_extractor
+RUN echo "{ \"ghidra_path\": \"/opt/ghidra\" }" | sudo tee /home/cwe/.config/cwe_checker/ghidra.json
+
+WORKDIR /
+
+ENTRYPOINT ["/home/cwe/cwe_checker"]
