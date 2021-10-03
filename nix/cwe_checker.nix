@@ -1,8 +1,7 @@
-{ version
-, homepage
-, downloadPage
+{ maintainers
 , changelog
-, maintainers
+, downloadPage
+, homepage
 , platforms
 }:
 { lib
@@ -18,16 +17,24 @@
 
 let
   inherit (nix-filter) inDirectory;
-  inherit (nix-utils) getPatches;
+  inherit (nix-utils)
+    getPatches
+    importCargoLock
+  ;
 
   rustPlatform = makeRustPlatform {
     inherit (fenix.stable) cargo rustc;
   };
 
   pname = "cwe_checker";
+  root = ./..;
+  # Reading the files in the filtered directory is not possible right now.
+  # Follow up on how https://github.com/NixOS/nix/pull/5163 will be resolved.
+  cargoLock = importCargoLock root;
+
+  version = cargoLock.${pname}.version;
   mainProgram = pname;
 
-  root = ./..;
   src = nix-filter {
     inherit root;
     name = pname;
@@ -55,7 +62,7 @@ in
 rustPlatform.buildRustPackage {
   inherit pname version src;
 
-  cargoHash = "sha256-OOUg1VJdWEU6KRhjxBAd44gSQW4s+kOFAMZtu3fiAhw=";
+  cargoHash = "sha256-igAygYTIkV+gfBWVHGVspheTC19TilU3A3/MqSwhd90=";
 
   buildInputs = [
     ghidra-bin.out

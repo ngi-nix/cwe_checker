@@ -35,16 +35,12 @@
       ;
       nix-filter = inputs.nix-filter.lib;
       nix-utils = inputs.nix-utils.lib;
-      inherit (nix-utils)
-        createOverlays
-        getUnstableVersion
-      ;
+      inherit (nix-utils) createOverlays;
 
       # ghidra-bin.meta.platforms
       ghidraPlatforms = [ "x86_64-linux" "x86_64-darwin" ];
       supportedSystems = intersectLists defaultSystems ghidraPlatforms;
       commonArgs = {
-        version = getUnstableVersion self.lastModifiedDate;
         homepage = "https://github.com/fkie-cad/cwe_checker";
         downloadPage = "https://github.com/fkie-cad/cwe_checker/releases";
         changelog = "https://raw.githubusercontent.com/fkie-cad/cwe_checker/master/CHANGES.md";
