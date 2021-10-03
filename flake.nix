@@ -35,12 +35,16 @@
       ;
       nix-filter = inputs.nix-filter.lib;
       nix-utils = inputs.nix-utils.lib;
-      inherit (nix-utils) createOverlays;
+      inherit (nix-utils)
+        createOverlays
+        importCargoLock
+      ;
 
       # ghidra-bin.meta.platforms
       ghidraPlatforms = [ "x86_64-linux" "x86_64-darwin" ];
       supportedSystems = intersectLists defaultSystems ghidraPlatforms;
       commonArgs = {
+        version = (importCargoLock ./.).cwe_checker.version;
         homepage = "https://github.com/fkie-cad/cwe_checker";
         downloadPage = "https://github.com/fkie-cad/cwe_checker/releases";
         changelog = "https://raw.githubusercontent.com/fkie-cad/cwe_checker/master/CHANGES.md";
@@ -57,6 +61,7 @@
 
       derivations = {
         cwe_checker = import ./nix/cwe_checker.nix commonArgs;
+        cwe_checker_to_ida = import ./nix/cwe_checker_to_ida.nix commonArgs;
       };
     in
     {

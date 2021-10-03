@@ -1,7 +1,8 @@
-{ maintainers
+{ version
 , changelog
 , downloadPage
 , homepage
+, maintainers
 , platforms
 }:
 { lib
@@ -10,17 +11,12 @@
 , makeRustPlatform
 , makeWrapper
 , nix-filter
-, nix-utils
 , writeShellScript
 , ...
 }:
 
 let
   inherit (nix-filter) inDirectory;
-  inherit (nix-utils)
-    getPatches
-    importCargoLock
-  ;
 
   rustPlatform = makeRustPlatform {
     inherit (fenix.stable) cargo rustc;
@@ -30,9 +26,6 @@ let
   root = ./..;
   # Reading the files in the filtered directory is not possible right now.
   # Follow up on how https://github.com/NixOS/nix/pull/5163 will be resolved.
-  cargoLock = importCargoLock root;
-
-  version = cargoLock.${pname}.version;
   mainProgram = pname;
 
   src = nix-filter {
@@ -72,7 +65,9 @@ rustPlatform.buildRustPackage {
     makeWrapper.out
   ];
 
-  patches = getPatches ./patches;
+  patches = [
+    ./patches/0001-use-env-variable-for-ghidra-plugin-path.patch
+  ];
 
   postInstall = ''
     wrapProgram "$out/bin/${mainProgram}" \
