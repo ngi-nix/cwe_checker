@@ -75,6 +75,14 @@ rustPlatform.buildRustPackage {
       --run ${preRunScript}
   '';
 
+  doInstallCheck = true;
+  installCheckPhase = ''
+    tmp=$(mktemp)
+    HOME=$(mktemp -d) # because of the preRunScript
+    $out/bin/${mainProgram} --version &> $tmp || (cat $tmp; exit 1)
+    echo "OK"
+  '';
+
   passthru = {
     ghidra_plugin = "${toString root}/ghidra_plugin/cwe_checker_ghidra_plugin.py";
   };
