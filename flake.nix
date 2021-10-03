@@ -98,7 +98,9 @@
             packageList = attrValues packages;
           in
           pkgs.mkShell {
-            packages = packageList;
+            packages = packageList ++ [
+              defaultPackage.rustToolchain.defaultToolchain
+            ];
             inputsFrom = packageList;
           };
       });

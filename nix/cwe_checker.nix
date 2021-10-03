@@ -18,8 +18,9 @@
 let
   inherit (nix-filter) inDirectory;
 
+  rustToolchain = fenix.stable;
   rustPlatform = makeRustPlatform {
-    inherit (fenix.stable) cargo rustc;
+    inherit (rustToolchain) cargo rustc;
   };
 
   pname = "cwe_checker";
@@ -84,6 +85,7 @@ rustPlatform.buildRustPackage {
   '';
 
   passthru = {
+    inherit rustToolchain;
     ghidra_plugin = "${toString root}/ghidra_plugin/cwe_checker_ghidra_plugin.py";
   };
 
