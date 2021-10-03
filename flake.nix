@@ -6,7 +6,6 @@
     # nixpkgs.url = "nixpkgs/nixos-21.05";
     nixpkgs.url = "github:ilkecan/nixpkgs/nixos-21.05";
     flake-utils.url = "github:numtide/flake-utils";
-    nix-filter.url = "github:numtide/nix-filter";
 
     fenix = {
       url = "github:nix-community/fenix";
@@ -16,6 +15,11 @@
     nix-utils = {
       url = "git+https://git.sr.ht/~ilkecan/nix-utils";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    source = {
+      url = "github:fkie-cad/cwe_checker";
+      flake = false;
     };
   };
 
@@ -33,7 +37,6 @@
         defaultSystems
         eachSystem
       ;
-      nix-filter = inputs.nix-filter.lib;
       nix-utils = inputs.nix-utils.lib;
       inherit (nix-utils)
         createOverlays
@@ -44,7 +47,8 @@
       ghidraPlatforms = [ "x86_64-linux" "x86_64-darwin" ];
       supportedSystems = intersectLists defaultSystems ghidraPlatforms;
       commonArgs = {
-        version = (importCargoLock ./.).cwe_checker.version;
+        source = inputs.source.outPath;
+        version = (importCargoLock inputs.source).cwe_checker.version;
         homepage = "https://github.com/fkie-cad/cwe_checker";
         downloadPage = "https://github.com/fkie-cad/cwe_checker/releases";
         changelog = "https://raw.githubusercontent.com/fkie-cad/cwe_checker/master/CHANGES.md";
@@ -67,7 +71,6 @@
     {
       overlays = createOverlays derivations {
         inherit
-          nix-filter
           nix-utils
         ;
       };

@@ -4,41 +4,27 @@
 , homepage
 , maintainers
 , platforms
+, source
 }:
 { lib
 , fenix
 , ghidra-bin
 , makeRustPlatform
 , makeWrapper
-, nix-filter
 , writeShellScript
 , ...
 }:
 
 let
-  inherit (nix-filter) inDirectory;
-
   rustToolchain = fenix.stable;
   rustPlatform = makeRustPlatform {
     inherit (rustToolchain) cargo rustc;
   };
 
   pname = "cwe_checker";
-  root = ./..;
-  # Reading the files in the filtered directory is not possible right now.
-  # Follow up on how https://github.com/NixOS/nix/pull/5163 will be resolved.
   mainProgram = pname;
 
-  src = nix-filter {
-    inherit root;
-    name = pname;
-    include = [
-      "Cargo.lock"
-      "Cargo.toml"
-      (inDirectory "src")
-      (inDirectory "test")
-    ];
-  };
+  src = source;
 
   preRunScript = writeShellScript "preRunScript" ''
     config_dir="$HOME/.config/cwe_checker"
@@ -86,7 +72,7 @@ rustPlatform.buildRustPackage {
 
   passthru = {
     inherit rustToolchain;
-    ghidra_plugin = "${toString root}/ghidra_plugin/cwe_checker_ghidra_plugin.py";
+    ghidra_plugin = "${toString source}/ghidra_plugin/cwe_checker_ghidra_plugin.py";
   };
 
   meta = {

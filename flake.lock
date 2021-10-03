@@ -36,21 +36,6 @@
         "type": "github"
       }
     },
-    "nix-filter": {
-      "locked": {
-        "lastModified": 1620202920,
-        "narHash": "sha256-BOkm3eKT45Dk4NNxJT0xL9NnyYeZcF+t79zPnJkggac=",
-        "owner": "numtide",
-        "repo": "nix-filter",
-        "rev": "3c9e33ed627e009428197b07216613206f06ed80",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "nix-filter",
-        "type": "github"
-      }
-    },
     "nix-utils": {
       "inputs": {
         "nixpkgs": [
@@ -91,9 +76,9 @@
       "inputs": {
         "fenix": "fenix",
         "flake-utils": "flake-utils",
-        "nix-filter": "nix-filter",
         "nix-utils": "nix-utils",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "source": "source"
       }
     },
     "rust-analyzer-src": {
@@ -110,6 +95,22 @@
         "owner": "rust-analyzer",
         "ref": "nightly",
         "repo": "rust-analyzer",
+        "type": "github"
+      }
+    },
+    "source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1633069048,
+        "narHash": "sha256-3yl+iMOJzgwOybKnfAZ/BMbwI762IWpMmphZyPoXJNI=",
+        "owner": "fkie-cad",
+        "repo": "cwe_checker",
+        "rev": "a497d27a0b96cc0bf66a6b8a8ece4eb7034346e6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "fkie-cad",
+        "repo": "cwe_checker",
         "type": "github"
       }
     }

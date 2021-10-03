@@ -4,6 +4,7 @@
 , homepage
 , maintainers
 , platforms
+, source
 }:
 { lib
 , python3
@@ -19,7 +20,7 @@ stdenvNoCC.mkDerivation {
   pname = "cwe_checker_to_ida";
   inherit version;
 
-  src = ./../cwe_checker_to_ida;
+  src = "${toString source}/cwe_checker_to_ida";
 
   outputs = [ "bin" "out" ];
   propagatedBuildOutputs = [ ];
