@@ -45,11 +45,11 @@ rustPlatform.buildRustPackage {
   cargoHash = "sha256-igAygYTIkV+gfBWVHGVspheTC19TilU3A3/MqSwhd90=";
 
   buildInputs = [
-    ghidra-bin.out
+    ghidra-bin
   ];
 
   nativeBuildInputs = [
-    makeWrapper.out
+    makeWrapper
   ];
 
   patches = [
